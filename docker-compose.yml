@@ -1,0 +1,102 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sv_postgres
+    environment:
+      POSTGRES_DB: securevault
+      POSTGRES_USER: securevault
+      POSTGRES_PASSWORD: securevault
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U securevault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sv_network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: sv_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - sv_network
+
+  api-gateway:
+    image: angelss/securevault-api:latest
+    container_name: sv_api
+    environment:
+      DATABASE_URL: postgresql://securevault:securevault@postgres:5432/securevault
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      SECRET_KEY: dev-secret-key-change-in-production-123456789
+      FERNET_KEY: TlgmqrgYgDKS7jKdLdZEJn-4RzLMKqy0LqJKJLWqoaA=
+      DEBUG: "true"
+      ALLOW_SELF_REGISTER_ADMIN: "false"
+      ADMIN_USERNAME: admin
+      ADMIN_EMAIL: admin@securevault.local
+      ADMIN_PASSWORD: Admin123!ChangeMe
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sv_network
+    restart: unless-stopped
+
+  worker-audit:
+    image: angelss/securevault-worker:latest
+    container_name: sv_worker
+    environment:
+      DATABASE_URL: postgresql://securevault:securevault@postgres:5432/securevault
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      SECRET_ROTATION_DAYS: "90"
+      CHECK_INTERVAL_SECONDS: "30"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - sv_network
+    restart: unless-stopped
+
+  frontend:
+    image: angelss/securevault-frontend:latest
+    container_name: sv_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - sv_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  sv_network:
+    driver: bridge

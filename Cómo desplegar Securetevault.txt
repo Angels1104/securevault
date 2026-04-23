@@ -1,0 +1,20 @@
+Cómo usarlo — tú o cualquier persona
+Solo necesitan este archivo y Docker instalado. Nada más.
+1. Guardar el archivo en cualquier carpeta, por ejemplo C:\securevault\docker-compose.yml
+2. Abrir PowerShell en esa carpeta y ejecutar:
+powershell 
+docker compose up -d
+Docker descarga automáticamente las imágenes de tu Docker Hub y levanta todo.
+3. Abrir la app:
+
+Frontend → http://localhost:3000
+API Docs → http://localhost:8000/docs
+RabbitMQ UI → http://localhost:15672
+
+4. Credenciales iniciales:
+
+Usuario: admin
+Contraseña: Admin123!ChangeMe
+
+5. Para apagar todo:
+powershelldocker compose down
